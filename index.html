@@ -59,15 +59,18 @@
   const atur = document.getElementById('atur');
   const offline = document.getElementById('offline');
 
-  const urlValid = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(URL_APP) && URL_APP.indexOf('ISI_ID') < 0;
+  /* Rapikan URL: buang spasi, dan bila awalan tertempel dua kali ambil yang terakhir. */
+  const URL_BERSIH = (() => { const u = String(URL_APP).trim(), i = u.lastIndexOf('https://script.google.com/'); return i > 0 ? u.slice(i) : u; })();
+  const urlValid = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(URL_BERSIH) && URL_BERSIH.indexOf('ISI_ID') < 0;
 
   if (!urlValid) {
     muat.hidden = true;
     atur.hidden = false;
+    const t = document.createElement('p'); t.style.wordBreak = 'break-all'; t.textContent = 'Terbaca sekarang: ' + URL_BERSIH; atur.appendChild(t);
     frame.remove();
   } else {
     /* Parameter halaman ikut diteruskan: ?page=tv&tampilan=1600TR, #tv-300BP, dan sebagainya. */
-    frame.src = URL_APP + location.search + location.hash;
+    frame.src = URL_BERSIH + location.search + location.hash;
     let selesai = false;
     frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
     setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
@@ -91,3 +94,4 @@
 </script>
 </body>
 </html>
+
