@@ -2,7 +2,7 @@
    Menyimpan "kulit" aplikasi (halaman ini, manifest, ikon) supaya cepat dibuka dan bisa dipasang.
    Data inspeksi tetap diambil langsung dari Apps Script (script.google.com) dan tidak disimpan di sini.
    Setiap kali file di GitHub diubah, naikkan angka VERSI supaya HP mengambil versi baru. */
-const VERSI = 'qc-gate-v1';
+const VERSI = 'qc-gate-v2';
 const FILE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -41,3 +41,4 @@ self.addEventListener('fetch', e => {
     })
   );
 });
+
