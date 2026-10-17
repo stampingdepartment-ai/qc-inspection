@@ -71,14 +71,23 @@
     frame.remove();
   } else {
     /* Parameter halaman ikut diteruskan: ?page=tv&tampilan=1600TR, #tv-300BP, dan sebagainya. */
-    frame.src = URL_BERSIH + location.search + location.hash;
+    const tujuan = URL_BERSIH + location.search + location.hash;
+    /* Di HP, Google sering menolak web app Apps Script yang dibuka di dalam bingkai
+       ("Maaf, saat ini tidak dapat membuka file"), terutama bila HP masuk lebih dari satu akun Google.
+       Karena itu di HP aplikasi dibuka langsung; di laptop dan TV tetap di dalam halaman ini.
+       Paksa salah satu cara dengan ?mode=langsung atau ?mode=bingkai di alamat. */
+    const q = new URLSearchParams(location.search).get('mode');
+    const diHP = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const langsung = q === 'langsung' || (q !== 'bingkai' && diHP);
+    if (langsung) { muatTeks.textContent = 'Membuka aplikasi…'; frame.remove(); location.replace(tujuan); }
+    else frame.src = tujuan;
     let selesai = false;
-    frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
+    if (!langsung) frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
     setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
   }
 
   const cekKoneksi = () => { offline.style.display = navigator.onLine ? 'none' : 'block'; };
-  window.addEventListener('online', () => { cekKoneksi(); if (urlValid && frame.isConnected) frame.src = frame.src; });
+  window.addEventListener('online', () => { cekKoneksi(); if (urlValid && frame.isConnected && frame.src) frame.src = frame.src; });
   window.addEventListener('offline', cekKoneksi);
   cekKoneksi();
 
