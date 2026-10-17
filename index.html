@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QC Inspection Stamping</title>
+<meta name="description" content="QC Inspection Stamping Plant-2 - inspeksi quality gate dan periodic check">
+<meta name="theme-color" content="#0F1418">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QC Gate">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root { --bg: #0F1418; --panel: #182027; --line: #2A3540; --fg: #E6EDF2; --mut: #9FB0BD; --acc: #F2B233; --ng: #FF7A59; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
+  #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+  .layar { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; background: var(--bg); z-index: 5; transition: opacity .35s; }
+  .layar.hilang { opacity: 0; pointer-events: none; }
+  .layar img { width: 132px; height: 132px; }
+  .layar h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
+  .layar p { margin: 0; color: var(--mut); font-size: 14px; max-width: 420px; line-height: 1.5; }
+  .putar { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--acc); animation: putar 0.9s linear infinite; }
+  @keyframes putar { to { transform: rotate(360deg); } }
+  .btn { appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 12px 18px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn.pri { background: var(--acc); border-color: var(--acc); color: #1A1300; }
+  code { background: var(--panel); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  #offline { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9; background: var(--ng); color: #1A0A05; font-weight: 700; padding: 10px 16px; border-radius: 8px; font-size: 14px; display: none; }
+  #pasang { position: fixed; right: 16px; bottom: 16px; z-index: 8; display: none; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<div id="muat" class="layar" role="status">
+  <img src="icon-512.png" alt="Logo Quality Gate">
+  <h1>QC INSPECTION · STAMPING</h1>
+  <div class="putar" aria-hidden="true"></div>
+  <p id="muat-teks">Memuat aplikasi…</p>
+</div>
+<div id="atur" class="layar" hidden>
+  <img src="icon-512.png" alt="Logo Quality Gate">
+  <h1>URL aplikasi belum diisi</h1>
+  <p>Buka file <code>index.html</code> di GitHub, isi <code>URL_APP</code> dengan URL web app Apps Script yang berakhiran <code>/exec</code>, lalu simpan (Commit).</p>
+</div>
+<iframe id="app" title="QC Inspection Stamping" allow="camera; fullscreen; clipboard-write" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+<div id="offline" role="alert">Tidak ada koneksi internet</div>
+<button id="pasang" class="btn pri" type="button">Pasang aplikasi</button>
+
+<script>
+  /* ====== ISI DENGAN URL WEB APP APPS SCRIPT (Deploy > Manage deployments > Web app URL) ====== */
+  const URL_APP = 'https://script.google.com/macros/s/ISI_ID_DEPLOYMENT/exec';
+  /* ========================================================================================== */
+
+  const frame = document.getElementById('app');
+  const muat = document.getElementById('muat');
+  const muatTeks = document.getElementById('muat-teks');
+  const atur = document.getElementById('atur');
+  const offline = document.getElementById('offline');
+
+  const urlValid = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(URL_APP) && URL_APP.indexOf('ISI_ID') < 0;
+
+  if (!urlValid) {
+    muat.hidden = true;
+    atur.hidden = false;
+    frame.remove();
+  } else {
+    /* Parameter halaman ikut diteruskan: ?page=tv&tampilan=1600TR, #tv-300BP, dan sebagainya. */
+    frame.src = URL_APP + location.search + location.hash;
+    let selesai = false;
+    frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
+    setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
+  }
+
+  const cekKoneksi = () => { offline.style.display = navigator.onLine ? 'none' : 'block'; };
+  window.addEventListener('online', () => { cekKoneksi(); if (urlValid && frame.isConnected) frame.src = frame.src; });
+  window.addEventListener('offline', cekKoneksi);
+  cekKoneksi();
+
+  /* Tombol "Pasang aplikasi" (Android / Chrome / Edge). Di iPhone: Bagikan > Tambah ke Layar Utama. */
+  let tawaran = null;
+  const pasang = document.getElementById('pasang');
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); tawaran = e; pasang.style.display = 'block'; });
+  pasang.addEventListener('click', async () => { if (!tawaran) return; tawaran.prompt(); await tawaran.userChoice; tawaran = null; pasang.style.display = 'none'; });
+  window.addEventListener('appinstalled', () => { pasang.style.display = 'none'; });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+</script>
+</body>
+</html>
