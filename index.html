@@ -39,6 +39,11 @@
   <h1>QC INSPECTION · STAMPING</h1>
   <div class="putar" aria-hidden="true"></div>
   <p id="muat-teks">Memuat aplikasi…</p>
+  <div id="peluncur" hidden style="display:flex;flex-direction:column;gap:12px;align-items:center">
+    <button id="buka" class="btn pri" type="button" style="min-width:240px;padding:14px 20px;font-size:16px">Buka aplikasi QC</button>
+    <button id="pasang2" class="btn" type="button" style="min-width:240px" hidden>Pasang di layar utama</button>
+    <p id="petunjuk-ios" hidden>iPhone: ketuk Bagikan lalu Tambah ke Layar Utama.</p>
+  </div>
 </div>
 <div id="atur" class="layar" hidden>
   <img src="icon-512.png" alt="Logo Quality Gate">
@@ -79,11 +84,22 @@
     const q = new URLSearchParams(location.search).get('mode');
     const diHP = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     const langsung = q === 'langsung' || (q !== 'bingkai' && diHP);
-    if (langsung) { muatTeks.textContent = 'Membuka aplikasi…'; frame.remove(); location.replace(tujuan); }
+    /* Di HP halaman ini menjadi "peluncur": tetap di alamat ini supaya bisa dipasang sebagai aplikasi,
+       lalu tombol Buka membawa ke aplikasi QC. Kalau sudah dibuka dari ikon yang terpasang, langsung dibuka. */
+    const terpasang = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (langsung) {
+      frame.remove();
+      document.querySelector('#muat .putar').hidden = true;
+      document.getElementById('peluncur').hidden = false;
+      document.getElementById('buka').addEventListener('click', () => { location.href = tujuan; });
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !terpasang) document.getElementById('petunjuk-ios').hidden = false;
+      if (terpasang) { muatTeks.textContent = 'Membuka aplikasi…'; setTimeout(() => { location.replace(tujuan); }, 500); }
+      else muatTeks.textContent = 'Pasang dulu supaya ada ikon di layar utama, atau langsung buka.';
+    }
     else frame.src = tujuan;
     let selesai = false;
     if (!langsung) frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
-    setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
+    if (!langsung) setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
   }
 
   const cekKoneksi = () => { offline.style.display = navigator.onLine ? 'none' : 'block'; };
@@ -94,9 +110,12 @@
   /* Tombol "Pasang aplikasi" (Android / Chrome / Edge). Di iPhone: Bagikan > Tambah ke Layar Utama. */
   let tawaran = null;
   const pasang = document.getElementById('pasang');
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); tawaran = e; pasang.style.display = 'block'; });
-  pasang.addEventListener('click', async () => { if (!tawaran) return; tawaran.prompt(); await tawaran.userChoice; tawaran = null; pasang.style.display = 'none'; });
-  window.addEventListener('appinstalled', () => { pasang.style.display = 'none'; });
+  const pasang2 = document.getElementById('pasang2');
+  const diPeluncur = () => !document.getElementById('peluncur').hidden;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); tawaran = e; if (diPeluncur()) pasang2.hidden = false; else pasang.style.display = 'block'; });
+  const tawarkan = async () => { if (!tawaran) return; tawaran.prompt(); await tawaran.userChoice; tawaran = null; pasang.style.display = 'none'; pasang2.hidden = true; };
+  pasang.addEventListener('click', tawarkan); pasang2.addEventListener('click', tawarkan);
+  window.addEventListener('appinstalled', () => { pasang.style.display = 'none'; pasang2.hidden = true; muatTeks.textContent = 'Sudah terpasang. Buka dari ikon QC Gate di layar utama.'; });
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
