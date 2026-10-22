@@ -26,23 +26,21 @@
   .layar p { margin: 0; color: var(--mut); font-size: 14px; max-width: 420px; line-height: 1.5; }
   .putar { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--acc); animation: putar 0.9s linear infinite; }
   @keyframes putar { to { transform: rotate(360deg); } }
-  .btn { appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 12px 18px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn { appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 12px 18px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; min-width: 220px; }
   .btn.pri { background: var(--acc); border-color: var(--acc); color: #1A1300; }
   code { background: var(--panel); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-  #offline { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9; background: var(--ng); color: #1A0A05; font-weight: 700; padding: 10px 16px; border-radius: 8px; font-size: 14px; display: none; }
-  #pasang { position: fixed; right: 16px; bottom: 16px; z-index: 8; display: none; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+  #pasang { position: fixed; right: 16px; bottom: 16px; z-index: 8; display: none; min-width: 0; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
 </style>
 </head>
 <body>
 <div id="muat" class="layar" role="status">
   <img src="icon-512.png" alt="Logo Quality Gate">
   <h1>QC INSPECTION · STAMPING</h1>
-  <div class="putar" aria-hidden="true"></div>
+  <div class="putar" id="putar" aria-hidden="true"></div>
   <p id="muat-teks">Memuat aplikasi…</p>
-  <div id="peluncur" hidden style="display:flex;flex-direction:column;gap:12px;align-items:center">
-    <button id="buka" class="btn pri" type="button" style="min-width:240px;padding:14px 20px;font-size:16px">Buka aplikasi QC</button>
-    <button id="pasang2" class="btn" type="button" style="min-width:240px" hidden>Pasang di layar utama</button>
-    <p id="petunjuk-ios" hidden>iPhone: ketuk Bagikan lalu Tambah ke Layar Utama.</p>
+  <div id="gagal" hidden style="display:flex;flex-direction:column;gap:10px;align-items:center">
+    <button id="ulang" class="btn pri" type="button">Coba lagi</button>
+    <button id="langsung" class="btn" type="button">Buka lewat browser</button>
   </div>
 </div>
 <div id="atur" class="layar" hidden>
@@ -50,8 +48,7 @@
   <h1>URL aplikasi belum diisi</h1>
   <p>Buka file <code>index.html</code> di GitHub, isi <code>URL_APP</code> dengan URL web app Apps Script yang berakhiran <code>/exec</code>, lalu simpan (Commit).</p>
 </div>
-<iframe id="app" title="QC Inspection Stamping" allow="camera; fullscreen; clipboard-write" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
-<div id="offline" role="alert">Tidak ada koneksi internet</div>
+<iframe id="app" title="QC Inspection Stamping" allow="camera; fullscreen; clipboard-write" allowfullscreen></iframe>
 <button id="pasang" class="btn pri" type="button">Pasang aplikasi</button>
 
 <script>
@@ -59,63 +56,65 @@
   const URL_APP = 'https://script.google.com/macros/s/AKfycbzL_4Fz6fi3vZqyF3kb0aOTDX3kTzN3jW0umR_tyUECuOCkZ7haNgdgXRwg1XQLD3MyNw/exec';
   /* ========================================================================================== */
 
-  const frame = document.getElementById('app');
-  const muat = document.getElementById('muat');
-  const muatTeks = document.getElementById('muat-teks');
-  const atur = document.getElementById('atur');
-  const offline = document.getElementById('offline');
-
-  /* Rapikan URL: buang spasi, dan bila awalan tertempel dua kali ambil yang terakhir. */
+  /* Versi 6. Aplikasi QC dijalankan langsung di halaman ini (bukan membuka script.google.com):
+     isi aplikasi diambil dari Apps Script (?kode=1), dan setiap simpan / muat data dikirim ke URL /exec
+     TANPA cookie akun Google. Karena itu HP yang masuk banyak akun Google tetap bisa membuka aplikasi.
+     Salinan aplikasi disimpan di HP, jadi aplikasi tetap terbuka walau sinyal putus (inspeksi masuk antrean). */
+  const frame = document.getElementById('app'), muat = document.getElementById('muat'), teks = document.getElementById('muat-teks');
   const URL_BERSIH = (() => { const u = String(URL_APP).trim(), i = u.lastIndexOf('https://script.google.com/'); return i > 0 ? u.slice(i) : u; })();
-  const urlValid = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(URL_BERSIH) && URL_BERSIH.indexOf('ISI_ID') < 0;
+  const urlValid = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(URL_BERSIH) || window.QC_UJI_API;
+  const API = window.QC_UJI_API || URL_BERSIH;
+  const SIMPAN = 'qc_kode_aplikasi';
+  const simpan = s => { try { localStorage.setItem(SIMPAN, s); } catch (e) { /* memori browser penuh: tetap jalan tanpa salinan */ } };
+  const ambilSimpan = () => { try { return localStorage.getItem(SIMPAN) || ''; } catch (e) { return ''; } };
+  const kodeSah = s => typeof s === 'string' && s.indexOf('QC Inspection Stamping') >= 0 && s.indexOf('QCCore') >= 0;
+
+  function jalankan(kode) {
+    const awal = '<script>window.QC_API=' + JSON.stringify(API) + ';window.QC_QS=' + JSON.stringify({ search: location.search, hash: location.hash }) + ';<\/script>';
+    const html = kode.replace('<base target="_top">', '').replace(/<head>/i, '<head>' + awal);
+    frame.onload = () => { muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); };
+    frame.srcdoc = html;
+  }
+  function gagal(pesan) {
+    document.getElementById('putar').hidden = true;
+    teks.textContent = pesan;
+    document.getElementById('gagal').hidden = false;
+  }
+  async function mulai() {
+    document.getElementById('gagal').hidden = true; document.getElementById('putar').hidden = false; teks.textContent = 'Memuat aplikasi…';
+    const lama = ambilSimpan();
+    try {
+      const res = await fetch(API + (API.indexOf('?') >= 0 ? '&' : '?') + 'kode=1&t=' + Date.now(), { credentials: 'omit', cache: 'no-store', redirect: 'follow' });
+      const kode = await res.text();
+      if (!res.ok || !kodeSah(kode)) throw new Error('isi tidak dikenal');
+      if (kode !== lama) simpan(kode);
+      jalankan(kode);
+    } catch (e) {
+      /* Tidak ada sinyal, atau Code.gs belum versi terbaru: pakai salinan terakhir bila ada. */
+      if (kodeSah(lama)) { jalankan(lama); return; }
+      gagal(navigator.onLine === false ? 'Tidak ada koneksi internet. Sambungkan HP ke internet lalu coba lagi.' : 'Aplikasi belum bisa dimuat. Pastikan Code.gs di Apps Script sudah versi terbaru (ada ?kode=1) dan sudah Deploy versi baru.');
+    }
+  }
 
   if (!urlValid) {
     muat.hidden = true;
-    atur.hidden = false;
-    const t = document.createElement('p'); t.style.wordBreak = 'break-all'; t.textContent = 'Terbaca sekarang: ' + URL_BERSIH; atur.appendChild(t);
+    document.getElementById('atur').hidden = false;
+    const t = document.createElement('p'); t.style.wordBreak = 'break-all'; t.textContent = 'Terbaca sekarang: ' + URL_BERSIH; document.getElementById('atur').appendChild(t);
     frame.remove();
+  } else if (new URLSearchParams(location.search).get('mode') === 'langsung') {
+    location.replace(URL_BERSIH + location.search.replace(/([?&])mode=langsung&?/, '$1').replace(/[?&]$/, '') + location.hash);
   } else {
-    /* Parameter halaman ikut diteruskan: ?page=tv&tampilan=1600TR, #tv-300BP, dan sebagainya. */
-    const tujuan = URL_BERSIH + location.search + location.hash;
-    /* Di HP, Google sering menolak web app Apps Script yang dibuka di dalam bingkai
-       ("Maaf, saat ini tidak dapat membuka file"), terutama bila HP masuk lebih dari satu akun Google.
-       Karena itu di HP aplikasi dibuka langsung; di laptop dan TV tetap di dalam halaman ini.
-       Paksa salah satu cara dengan ?mode=langsung atau ?mode=bingkai di alamat. */
-    const q = new URLSearchParams(location.search).get('mode');
-    const diHP = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    const langsung = q === 'langsung' || (q !== 'bingkai' && diHP);
-    /* Di HP halaman ini menjadi "peluncur": tetap di alamat ini supaya bisa dipasang sebagai aplikasi,
-       lalu tombol Buka membawa ke aplikasi QC. Kalau sudah dibuka dari ikon yang terpasang, langsung dibuka. */
-    const terpasang = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    if (langsung) {
-      frame.remove();
-      document.querySelector('#muat .putar').hidden = true;
-      document.getElementById('peluncur').hidden = false;
-      document.getElementById('buka').addEventListener('click', () => { location.href = tujuan; });
-      if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !terpasang) document.getElementById('petunjuk-ios').hidden = false;
-      if (terpasang) { muatTeks.textContent = 'Membuka aplikasi…'; setTimeout(() => { location.replace(tujuan); }, 500); }
-      else muatTeks.textContent = 'Pasang dulu supaya ada ikon di layar utama, atau langsung buka.';
-    }
-    else frame.src = tujuan;
-    let selesai = false;
-    if (!langsung) frame.addEventListener('load', () => { selesai = true; muat.classList.add('hilang'); setTimeout(() => { muat.hidden = true; }, 400); });
-    if (!langsung) setTimeout(() => { if (!selesai) muatTeks.textContent = 'Masih memuat… Pastikan HP tersambung ke internet.'; }, 12000);
+    document.getElementById('ulang').addEventListener('click', mulai);
+    document.getElementById('langsung').addEventListener('click', () => { location.href = URL_BERSIH + location.search + location.hash; });
+    mulai();
   }
-
-  const cekKoneksi = () => { offline.style.display = navigator.onLine ? 'none' : 'block'; };
-  window.addEventListener('online', () => { cekKoneksi(); if (urlValid && frame.isConnected && frame.src) frame.src = frame.src; });
-  window.addEventListener('offline', cekKoneksi);
-  cekKoneksi();
 
   /* Tombol "Pasang aplikasi" (Android / Chrome / Edge). Di iPhone: Bagikan > Tambah ke Layar Utama. */
   let tawaran = null;
   const pasang = document.getElementById('pasang');
-  const pasang2 = document.getElementById('pasang2');
-  const diPeluncur = () => !document.getElementById('peluncur').hidden;
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); tawaran = e; if (diPeluncur()) pasang2.hidden = false; else pasang.style.display = 'block'; });
-  const tawarkan = async () => { if (!tawaran) return; tawaran.prompt(); await tawaran.userChoice; tawaran = null; pasang.style.display = 'none'; pasang2.hidden = true; };
-  pasang.addEventListener('click', tawarkan); pasang2.addEventListener('click', tawarkan);
-  window.addEventListener('appinstalled', () => { pasang.style.display = 'none'; pasang2.hidden = true; muatTeks.textContent = 'Sudah terpasang. Buka dari ikon QC Gate di layar utama.'; });
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); tawaran = e; pasang.style.display = 'block'; });
+  pasang.addEventListener('click', async () => { if (!tawaran) return; tawaran.prompt(); await tawaran.userChoice; tawaran = null; pasang.style.display = 'none'; });
+  window.addEventListener('appinstalled', () => { pasang.style.display = 'none'; });
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
